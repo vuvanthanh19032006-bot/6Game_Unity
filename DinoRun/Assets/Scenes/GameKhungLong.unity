@@ -159,6 +159,8 @@ MonoBehaviour:
   birdPrefab: {fileID: 4456260566350561867, guid: c2d44be1010cbe947b768fc28c961e8f, type: 3}
   spawnRate: 2
   spawnX: 10
+  minSpawnRate: 0.8
+  spawnSpeedUp: 0.05
   ground: {fileID: 1578115210}
 --- !u!4 &148799050
 Transform:
@@ -942,6 +944,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   speed: 5
+  maxSpeed: 12
+  speedIncrease: 0.2
   width: 17.78
   scoreText: {fileID: 273778203}
 --- !u!1 &1787598865

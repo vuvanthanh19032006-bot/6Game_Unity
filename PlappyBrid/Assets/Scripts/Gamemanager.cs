@@ -4,6 +4,13 @@ using UnityEngine.SceneManagement;
 
 public class GameManager : MonoBehaviour
 {
+    public class FPS : MonoBehaviour
+    {
+        void Start()
+        {
+            Application.targetFrameRate = 60;
+        }
+    }
     public static GameManager instance;
 
     public int score = 0;
