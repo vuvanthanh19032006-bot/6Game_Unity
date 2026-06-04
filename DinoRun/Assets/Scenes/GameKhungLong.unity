@@ -548,7 +548,11 @@ MonoBehaviour:
   jumpForce: 8
   gameOverUI: {fileID: 307430600}
   normalSprite: {fileID: 21300000, guid: 215341789dc7b8b4ca961124306872ef, type: 3}
-  duckSprite: {fileID: 21300000, guid: 26b27dc39a5c26640993bc6e343072fa, type: 3}
+  duckSprite: {fileID: 21300000, guid: 215341789dc7b8b4ca961124306872ef, type: 3}
+  swipeDownDistance: 80
+  tapMaxDistance: 35
+  mobileDuckTime: 0.35
+  duckScale: {x: 1.3, y: 1.3, z: 1}
 --- !u!61 &766691658
 BoxCollider2D:
   m_ObjectHideFlags: 0
@@ -620,7 +624,7 @@ Rigidbody2D:
   m_Interpolate: 0
   m_SleepingMode: 1
   m_CollisionDetection: 0
-  m_Constraints: 0
+  m_Constraints: 4
 --- !u!1 &1046621021
 GameObject:
   m_ObjectHideFlags: 0

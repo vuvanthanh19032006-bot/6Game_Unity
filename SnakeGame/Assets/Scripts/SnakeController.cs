@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.EventSystems;
 
 public class SnakeController : MonoBehaviour
 {
@@ -11,29 +12,38 @@ public class SnakeController : MonoBehaviour
     [Header("Snake Settings")]
     public int initialSize = 4;
     public int pointsPerFood = 1;
-    public float moveDelay = 0.12f;
-    public float minMoveDelay = 0.055f;
-    public float speedUpRate = 0.985f;
+
+    [Header("Difficulty Speed")]
+    public float speedScore0 = 0.14f;   // 0 - 4 điểm
+    public float speedScore5 = 0.11f;   // 5 - 9 điểm
+    public float speedScore10 = 0.085f; // 10 - 14 điểm
+    public float speedScore15 = 0.065f; // 15+ điểm
 
     [Header("Board Settings")]
     public float gridSize = 1f;
-    public Vector2Int startCell = Vector2Int.zero;
+    public Vector2Int startCell = new Vector2Int(0, -1);
     public Vector2Int boardMin = new Vector2Int(-13, -6);
-    public Vector2Int boardMax = new Vector2Int(13, 6);
+    public Vector2Int boardMax = new Vector2Int(13, 4);
+
+    [Header("Mobile Swipe Settings")]
+    public float minSwipeDistance = 60f;
 
     private readonly List<Transform> segments = new List<Transform>();
 
     private Vector2Int direction = Vector2Int.right;
     private Vector2Int nextDirection = Vector2Int.right;
 
+    private float moveDelay;
     private float moveTimer;
-    private float defaultMoveDelay;
-    private Vector2 swipeStart;
+
+    private int currentScore;
+
+    private Vector2 swipeStartPosition;
+    private Vector2 swipeEndPosition;
+    private bool isSwiping;
 
     private void Awake()
     {
-        defaultMoveDelay = moveDelay;
-
         if (gameManager == null)
             gameManager = FindObjectOfType<GameManager>();
 
@@ -60,7 +70,8 @@ public class SnakeController : MonoBehaviour
         if (segments.Count == 0)
             return;
 
-        ReadInput();
+        ReadKeyboardInput();
+        ReadSwipeInput();
 
         moveTimer += Time.deltaTime;
 
@@ -73,7 +84,8 @@ public class SnakeController : MonoBehaviour
 
     public void ResetSnake()
     {
-        moveDelay = defaultMoveDelay;
+        currentScore = 0;
+        moveDelay = speedScore0;
         moveTimer = 0f;
 
         direction = Vector2Int.right;
@@ -99,8 +111,14 @@ public class SnakeController : MonoBehaviour
                 return;
             }
 
-            Vector2Int cell = startCell - direction * i;
-            Transform body = Instantiate(bodyPrefab, CellToWorld(cell), Quaternion.identity);
+            Vector2Int bodyCell = startCell - direction * i;
+
+            Transform body = Instantiate(
+                bodyPrefab,
+                CellToWorld(bodyCell),
+                Quaternion.identity
+            );
+
             body.name = "Snake Body";
             body.SetParent(transform.parent);
             segments.Add(body);
@@ -109,13 +127,10 @@ public class SnakeController : MonoBehaviour
 
     private void MoveSnake()
     {
-        if (segments.Count == 0)
-            return;
-
         direction = nextDirection;
 
-        Vector2Int headCell = WorldToCell(transform.position);
-        Vector2Int nextCell = headCell + direction;
+        Vector2Int currentHeadCell = WorldToCell(transform.position);
+        Vector2Int nextCell = currentHeadCell + direction;
 
         if (IsOutsideBoard(nextCell))
         {
@@ -149,13 +164,34 @@ public class SnakeController : MonoBehaviour
         {
             Grow(tailPosition);
 
+            currentScore += 1;
+            UpdateDifficulty();
+
             if (gameManager != null)
                 gameManager.AddScore(pointsPerFood);
 
-            moveDelay = Mathf.Max(minMoveDelay, moveDelay * speedUpRate);
-
             if (foodSpawner != null)
                 foodSpawner.SpawnFood();
+        }
+    }
+
+    private void UpdateDifficulty()
+    {
+        if (currentScore >= 15)
+        {
+            moveDelay = speedScore15;
+        }
+        else if (currentScore >= 10)
+        {
+            moveDelay = speedScore10;
+        }
+        else if (currentScore >= 5)
+        {
+            moveDelay = speedScore5;
+        }
+        else
+        {
+            moveDelay = speedScore0;
         }
     }
 
@@ -170,10 +206,11 @@ public class SnakeController : MonoBehaviour
         Transform body = Instantiate(bodyPrefab, position, Quaternion.identity);
         body.name = "Snake Body";
         body.SetParent(transform.parent);
+
         segments.Add(body);
     }
 
-    private void ReadInput()
+    private void ReadKeyboardInput()
     {
         if (Input.GetKeyDown(KeyCode.W) || Input.GetKeyDown(KeyCode.UpArrow))
             TryChangeDirection(Vector2Int.up);
@@ -186,50 +223,70 @@ public class SnakeController : MonoBehaviour
 
         else if (Input.GetKeyDown(KeyCode.D) || Input.GetKeyDown(KeyCode.RightArrow))
             TryChangeDirection(Vector2Int.right);
-
-        ReadSwipeInput();
     }
 
     private void ReadSwipeInput()
     {
-        if (Input.GetMouseButtonDown(0))
-        {
-            swipeStart = Input.mousePosition;
-        }
-
-        if (Input.GetMouseButtonUp(0))
-        {
-            Vector2 delta = (Vector2)Input.mousePosition - swipeStart;
-            DetectSwipe(delta);
-        }
-
         if (Input.touchCount > 0)
         {
             Touch touch = Input.GetTouch(0);
 
-            if (touch.phase == TouchPhase.Began)
-                swipeStart = touch.position;
+            if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject(touch.fingerId))
+                return;
 
-            if (touch.phase == TouchPhase.Ended)
+            if (touch.phase == TouchPhase.Began)
             {
-                Vector2 delta = touch.position - swipeStart;
-                DetectSwipe(delta);
+                swipeStartPosition = touch.position;
+                isSwiping = true;
             }
+            else if (touch.phase == TouchPhase.Ended && isSwiping)
+            {
+                swipeEndPosition = touch.position;
+                DetectSwipe(swipeEndPosition - swipeStartPosition);
+                isSwiping = false;
+            }
+
+            return;
+        }
+
+        if (Input.GetMouseButtonDown(0))
+        {
+            if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject())
+                return;
+
+            swipeStartPosition = Input.mousePosition;
+            isSwiping = true;
+        }
+
+        if (Input.GetMouseButtonUp(0) && isSwiping)
+        {
+            swipeEndPosition = Input.mousePosition;
+            DetectSwipe(swipeEndPosition - swipeStartPosition);
+            isSwiping = false;
         }
     }
 
-    private void DetectSwipe(Vector2 delta)
+    private void DetectSwipe(Vector2 swipeDelta)
     {
-        if (delta.magnitude < 80f)
+        if (swipeDelta.magnitude < minSwipeDistance)
             return;
 
-        if (Mathf.Abs(delta.x) > Mathf.Abs(delta.y))
+        float horizontal = Mathf.Abs(swipeDelta.x);
+        float vertical = Mathf.Abs(swipeDelta.y);
+
+        if (horizontal > vertical)
         {
-            TryChangeDirection(delta.x > 0 ? Vector2Int.right : Vector2Int.left);
+            if (swipeDelta.x > 0)
+                TryChangeDirection(Vector2Int.right);
+            else
+                TryChangeDirection(Vector2Int.left);
         }
         else
         {
-            TryChangeDirection(delta.y > 0 ? Vector2Int.up : Vector2Int.down);
+            if (swipeDelta.y > 0)
+                TryChangeDirection(Vector2Int.up);
+            else
+                TryChangeDirection(Vector2Int.down);
         }
     }
 
@@ -265,7 +322,7 @@ public class SnakeController : MonoBehaviour
 
         for (int i = 1; i < checkCount; i++)
         {
-            if (WorldToCell(segments[i].position) == nextCell)
+            if (segments[i] != null && WorldToCell(segments[i].position) == nextCell)
                 return true;
         }
 
